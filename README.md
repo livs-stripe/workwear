@@ -22,7 +22,7 @@ React Native app  ──POST /api/connection-token───────▶  Verc
 | `/api/connection-token.ts`      | Returns a Terminal `connectionToken` secret          |
 | `/api/create-payment-intent.ts` | Creates a `card_present` PaymentIntent (AUD)          |
 | `/src`                          | React Native app (screens, components, hooks)        |
-| `vercel.json`                   | Pins the functions to the `nodejs20.x` runtime       |
+| `vercel.json`                   | Minimal config; Node version pinned via `engines`    |
 
 ---
 
