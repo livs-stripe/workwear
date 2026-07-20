@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+
+# React Native / Metro
+.metro-health-check*
+metro.log
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.keystore
+!debug.keystore
+
+# Vercel
+.vercel
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
