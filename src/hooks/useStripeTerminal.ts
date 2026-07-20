@@ -24,7 +24,7 @@ export function useTerminalPayments() {
 
   const {
     discoverReaders,
-    connectLocalMobileReader,
+    connectReader,
     retrievePaymentIntent,
     collectPaymentMethod,
     // Newer SDKs expose confirmPaymentIntent; older betas call this processPayment.
@@ -45,11 +45,12 @@ export function useTerminalPayments() {
 
   const autoConnect = useCallback(
     async (candidate: Reader.Type) => {
-      const {reader: connectedRdr, error} = await connectLocalMobileReader({
+      const {reader: connectedRdr, error} = await connectReader({
+        discoveryMethod: 'tapToPay',
         reader: candidate,
-        // locationId is required for Tap to Pay; the SDK will use the
-        // reader's registered location for local mobile readers.
-        locationId: candidate.locationId ?? undefined,
+        // locationId is required for Tap to Pay; fall back to the reader's
+        // registered location when available.
+        locationId: candidate.locationId ?? '',
       });
       if (error) {
         setConnected(false);
@@ -60,7 +61,7 @@ export function useTerminalPayments() {
         setConnected(true);
       }
     },
-    [connectLocalMobileReader],
+    [connectReader],
   );
 
   const startDiscovery = useCallback(async () => {
@@ -68,7 +69,7 @@ export function useTerminalPayments() {
     try {
       await initialize?.();
       const {error} = await discoverReaders({
-        discoveryMethod: 'localMobile',
+        discoveryMethod: 'tapToPay',
         simulated: SIMULATOR_MODE,
       });
       if (error) {

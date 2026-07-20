@@ -66,31 +66,62 @@ This is the **only** value you must change after deploying.
 
 ## 3. Run the React Native app on a device
 
-Tap to Pay requires a **physical iPhone** (Xcode + a paid Apple Developer account
-with the *Tap to Pay on iPhone* entitlement). The simulator cannot read cards.
+Tap to Pay requires a **physical iPhone** (iPhone XS or newer, iOS 16.7+) with
+Xcode and a paid Apple Developer account that has the *Tap to Pay on iPhone*
+entitlement approved. **Tap to Pay cannot run in the iOS Simulator** — the
+simulator has no NFC/proximity reader hardware.
+
+The native `ios/` and `android/` projects are committed to this repo, so you do
+not need to generate them. Install dependencies and pods:
 
 ```bash
 # install JS dependencies
 npm install
 
-# iOS native deps
+# iOS native deps (CocoaPods required: brew install cocoapods)
 cd ios && pod install && cd ..
+```
 
-# run on a connected device
+> If a package's postinstall script fails on your machine (e.g. the `esbuild`
+> binary used by the `@vercel/node` dev dependency gets killed on some macOS
+> setups), you can install with `npm install --ignore-scripts`. That dev tool is
+> only used for local Vercel emulation and is not needed to build the app.
+
+### Required one-time Xcode setup (needs your Apple Developer account)
+
+The following steps require **your** Apple ID/Team and cannot be automated:
+
+1. Open the workspace (not the `.xcodeproj`):
+
+   ```bash
+   open ios/WorkwearFieldPay.xcworkspace
+   ```
+
+2. Select the **WorkwearFieldPay** target → **Signing & Capabilities**.
+3. Check **Automatically manage signing** and choose your **Team**.
+4. Set a unique **Bundle Identifier** (the default is
+   `org.reactjs.native.example.WorkwearFieldPay`).
+5. Click **+ Capability** and add **Tap to Pay on iPhone**. This corresponds to
+   the `com.apple.developer.proximity-reader.payment.acceptance` entitlement,
+   which is already present in
+   `ios/WorkwearFieldPay/WorkwearFieldPay.entitlements`. Your Apple Developer
+   account must be approved for this entitlement by Apple.
+
+Then run on a connected device:
+
+```bash
 npx react-native run-ios --device
 ```
 
-For Android Tap to Pay, run on a supported physical device:
+For Android Tap to Pay, run on a supported physical device (Android with NFC,
+`minSdkVersion` is set to 26):
 
 ```bash
 npx react-native run-android
 ```
 
-> **Native projects:** This repo contains the JS/TS source and all config. If the
-> `ios/` and `android/` folders are not present, generate them once with
-> `npx react-native init WorkwearFieldPay --version 0.75.4` and copy the native
-> folders in, or run the RN CLI upgrade helper. Then add the Tap to Pay
-> entitlement and `NSLocationWhenInUseUsageDescription` to `ios/`.
+> **Note on iOS deployment target:** the Podfile pins `platform :ios, '16.0'`
+> because Tap to Pay on iPhone requires iOS 16.7+.
 
 ---
 
