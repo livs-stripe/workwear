@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   useStripeTerminal as useSdkStripeTerminal,
   Reader,
@@ -38,6 +38,14 @@ export function useTerminalPayments() {
   const [initError, setInitError] = useState<string | null>(null);
   const [reader, setReader] = useState<Reader.Type | null>(null);
 
+  // Refs guard against re-running discovery/connect on hot-reload, effect
+  // re-runs or duplicate onUpdateDiscoveredReaders callbacks. Reading live
+  // values from refs (instead of state) avoids the "Already connected to a
+  // reader" rejection the SDK throws when startDiscovery runs while connected.
+  const discoveryInProgress = useRef(false);
+  const connectInProgress = useRef(false);
+  const hasReader = useRef(false);
+
   const {
     discoverReaders,
     connectReader,
@@ -51,41 +59,70 @@ export function useTerminalPayments() {
     initialize,
   } = useSdkStripeTerminal({
     onUpdateDiscoveredReaders: readers => {
-      if (readers.length > 0 && !connectedReader) {
+      // Only connect if we don't already have (or aren't already connecting to)
+      // a reader, to avoid stacking connect calls on repeated callbacks.
+      if (
+        readers.length > 0 &&
+        !connectedReader &&
+        !hasReader.current &&
+        !connectInProgress.current
+      ) {
         void autoConnect(readers[0]);
       }
     },
     onDidChangeConnectionStatus: status => {
-      setConnected(status === 'connected');
+      const isConnected = status === 'connected';
+      setConnected(isConnected);
+      hasReader.current = isConnected;
     },
   });
 
   const autoConnect = useCallback(
     async (candidate: Reader.Type) => {
-      const {reader: connectedRdr, error} = await connectReader({
-        discoveryMethod: DISCOVERY_METHOD,
-        reader: candidate,
-        // locationId is required for both methods; simulated readers carry a
-        // mock location, otherwise fall back to the reader's own location.
-        locationId: candidate.locationId ?? '',
-      });
-      if (error) {
-        setConnected(false);
+      if (connectInProgress.current || hasReader.current) {
         return;
       }
-      if (connectedRdr) {
-        setReader(connectedRdr);
-        setConnected(true);
-        // In simulator mode, tell the virtual reader which card to present.
-        if (SIMULATOR_MODE) {
-          await setSimulatedCard(SIMULATED_CARD);
+      connectInProgress.current = true;
+      try {
+        const {reader: connectedRdr, error} = await connectReader({
+          discoveryMethod: DISCOVERY_METHOD,
+          reader: candidate,
+          // locationId is required for both methods; simulated readers carry a
+          // mock location, otherwise fall back to the reader's own location.
+          locationId: candidate.locationId ?? '',
+        });
+        if (error) {
+          setConnected(false);
+          return;
         }
+        if (connectedRdr) {
+          setReader(connectedRdr);
+          setConnected(true);
+          hasReader.current = true;
+          // In simulator mode, tell the virtual reader which card to present.
+          if (SIMULATOR_MODE) {
+            await setSimulatedCard(SIMULATED_CARD);
+          }
+        }
+      } finally {
+        connectInProgress.current = false;
       }
     },
     [connectReader, setSimulatedCard],
   );
 
   const startDiscovery = useCallback(async () => {
+    // Don't (re)start discovery if a reader is already connected or a
+    // discovery/connect is already running. Re-running startDiscovery while
+    // connected makes the SDK reject with "Already connected to a reader".
+    if (
+      hasReader.current ||
+      connectInProgress.current ||
+      discoveryInProgress.current
+    ) {
+      return;
+    }
+    discoveryInProgress.current = true;
     setDiscovering(true);
     try {
       const {error} = await discoverReaders({
@@ -93,9 +130,24 @@ export function useTerminalPayments() {
         simulated: SIMULATOR_MODE,
       });
       if (error) {
+        // Treat an already-connected reader as a benign no-op rather than an
+        // unhandled rejection.
+        if (/already connected/i.test(error.message)) {
+          return;
+        }
         throw new Error(error.message);
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/already connected/i.test(msg)) {
+        // Benign: reader is already connected. Swallow to avoid the
+        // "Possible unhandled promise rejection" warning.
+        return;
+      }
+      // Log at most; discovery failures shouldn't crash the payment flow.
+      console.warn('[Terminal] discovery failed:', msg);
     } finally {
+      discoveryInProgress.current = false;
       setDiscovering(false);
     }
   }, [discoverReaders]);
@@ -143,6 +195,7 @@ export function useTerminalPayments() {
     if (connectedReader) {
       setReader(connectedReader);
       setConnected(true);
+      hasReader.current = true;
     }
   }, [connectedReader]);
 

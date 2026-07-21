@@ -17,12 +17,14 @@ import {
   getProductsByBrand,
   Product,
 } from '../constants/products';
+import {useCart} from '../context/CartContext';
 import type {RootStackParamList} from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
 
 const ProductScreen: React.FC<Props> = ({navigation}) => {
   const [customAmount, setCustomAmount] = useState('');
+  const {addItem, itemCount} = useCart();
 
   const customCents = Math.round(parseFloat(customAmount || '0') * 100);
   const customValid = customCents > 0;
@@ -31,19 +33,20 @@ const ProductScreen: React.FC<Props> = ({navigation}) => {
     navigation.navigate('ProductDetail', {productId: product.id});
   };
 
-  const onChargeCustom = () => {
+  const onAddCustom = () => {
     if (!customValid) {
       return;
     }
-    navigation.navigate('Payment', {
-      item: {
-        id: 'custom',
-        name: 'Custom amount',
-        sku: 'CUSTOM',
-        priceCents: customCents,
-        quantity: 1,
-      },
+    addItem({
+      // Unique id per custom line so multiple one-off amounts don't merge.
+      id: `custom-${Date.now()}`,
+      name: 'Custom amount',
+      sku: 'CUSTOM',
+      priceCents: customCents,
+      quantity: 1,
     });
+    setCustomAmount('');
+    navigation.navigate('Cart');
   };
 
   return (
@@ -54,6 +57,17 @@ const ProductScreen: React.FC<Props> = ({navigation}) => {
           <Text style={styles.brand}>WORKWEAR</Text>
           <Text style={styles.subtitle}>Field Pay · Tap to Pay</Text>
         </View>
+        <TouchableOpacity
+          style={styles.cartBtn}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('Cart')}>
+          <Text style={styles.cartIcon}>🛒</Text>
+          {itemCount > 0 ? (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{itemCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -101,10 +115,10 @@ const ProductScreen: React.FC<Props> = ({navigation}) => {
               activeOpacity={0.85}
               disabled={!customValid}
               style={[styles.customCta, !customValid && styles.customCtaDisabled]}
-              onPress={onChargeCustom}>
+              onPress={onAddCustom}>
               <Text style={styles.customCtaText}>
                 {customValid
-                  ? `Charge ${formatPrice(customCents)}`
+                  ? `Add ${formatPrice(customCents)} to cart`
                   : 'Enter an amount'}
               </Text>
             </TouchableOpacity>
@@ -131,6 +145,33 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.primary,
     marginRight: spacing.md,
+  },
+  cartBtn: {
+    marginLeft: 'auto',
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartIcon: {fontSize: 20},
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    color: colors.white,
+    fontSize: font.sizes.xs,
+    fontWeight: font.weight.bold,
   },
   brand: {
     fontSize: font.sizes.lg,

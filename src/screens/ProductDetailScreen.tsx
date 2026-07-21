@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
+  Animated,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,16 +12,20 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {colors, font, radius, spacing} from '../constants/theme';
 import {formatPrice, getProductById} from '../constants/products';
+import {useCart} from '../context/CartContext';
 import type {RootStackParamList} from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
 const ProductDetailScreen: React.FC<Props> = ({navigation, route}) => {
   const product = getProductById(route.params.productId);
+  const {addItem, itemCount} = useCart();
 
   const [color, setColor] = useState(product?.colors[0] ?? '');
   const [size, setSize] = useState(product?.sizes[0] ?? '');
   const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   if (!product) {
     return (
@@ -39,18 +44,45 @@ const ProductDetailScreen: React.FC<Props> = ({navigation, route}) => {
 
   const totalCents = product.priceCents * quantity;
 
-  const onCharge = () => {
-    navigation.navigate('Payment', {
-      item: {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        priceCents: product.priceCents,
-        quantity,
-        color,
-        size,
-      },
+  const addToCart = () => {
+    addItem({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      priceCents: product.priceCents,
+      imageUrl: product.imageUrl,
+      color,
+      size,
+      quantity,
     });
+  };
+
+  const flashToast = () => {
+    setAdded(true);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.delay(1200),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setAdded(false));
+  };
+
+  const onAddToOrder = () => {
+    addToCart();
+    flashToast();
+  };
+
+  const onAddAndViewCart = () => {
+    addToCart();
+    navigation.navigate('Cart');
   };
 
   return (
@@ -58,6 +90,16 @@ const ProductDetailScreen: React.FC<Props> = ({navigation, route}) => {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.cartBtn}
+          onPress={() => navigation.navigate('Cart')}>
+          <Text style={styles.cartBtnText}>Cart</Text>
+          {itemCount > 0 ? (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{itemCount}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
       </View>
 
@@ -140,11 +182,24 @@ const ProductDetailScreen: React.FC<Props> = ({navigation, route}) => {
       </ScrollView>
 
       <View style={styles.footer}>
+        {added ? (
+          <Animated.View style={[styles.toast, {opacity: toastOpacity}]}>
+            <Text style={styles.toastText}>✓ Added to order</Text>
+          </Animated.View>
+        ) : null}
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.cta}
-          onPress={onCharge}>
-          <Text style={styles.ctaText}>Charge {formatPrice(totalCents)}</Text>
+          onPress={onAddToOrder}>
+          <Text style={styles.ctaText}>
+            Add to order · {formatPrice(totalCents)}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.secondaryCta}
+          onPress={onAddAndViewCart}>
+          <Text style={styles.secondaryCtaText}>Add &amp; view cart</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -156,6 +211,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
@@ -163,6 +219,27 @@ const styles = StyleSheet.create({
     fontSize: font.sizes.md,
     color: colors.primary,
     fontWeight: font.weight.semibold,
+  },
+  cartBtn: {flexDirection: 'row', alignItems: 'center'},
+  cartBtnText: {
+    fontSize: font.sizes.md,
+    color: colors.primary,
+    fontWeight: font.weight.semibold,
+  },
+  cartBadge: {
+    marginLeft: spacing.xs,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    color: colors.white,
+    fontSize: font.sizes.xs,
+    fontWeight: font.weight.bold,
   },
   scroll: {paddingBottom: spacing.xl},
   imageWrap: {
@@ -297,6 +374,33 @@ const styles = StyleSheet.create({
   ctaText: {
     color: colors.white,
     fontSize: font.sizes.lg,
+    fontWeight: font.weight.bold,
+  },
+  secondaryCta: {
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  secondaryCtaText: {
+    color: colors.primary,
+    fontSize: font.sizes.md,
+    fontWeight: font.weight.bold,
+  },
+  toast: {
+    position: 'absolute',
+    top: -44,
+    alignSelf: 'center',
+    backgroundColor: colors.success,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  toastText: {
+    color: colors.white,
+    fontSize: font.sizes.sm,
     fontWeight: font.weight.bold,
   },
 });

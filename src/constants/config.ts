@@ -1,5 +1,5 @@
-// Replace with your Vercel deployment URL
-export const API_BASE_URL = 'https://your-project.vercel.app';
+// Mobile backend (bare Vercel functions: /api/connection-token, /api/create-payment-intent)
+export const API_BASE_URL = 'https://workwear-ten.vercel.app';
 
 // Simulator toggle (one-line switch):
 //   true  = simulated reader via "bluetoothScan". Requires NO Apple Tap to Pay

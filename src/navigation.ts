@@ -1,28 +1,28 @@
 import type {ChargeResult} from './hooks/useStripeTerminal';
-
-export interface CartItem {
-  id: string;
-  name: string;
-  sku: string;
-  priceCents: number;
-  quantity: number;
-  color?: string;
-  size?: string;
-}
+import type {CartLine} from './context/CartContext';
 
 export type RootStackParamList = {
   Products: undefined;
   ProductDetail: {
     productId: string;
   };
+  Cart: undefined;
   Payment: {
-    item: CartItem;
+    // The lines being charged and their summed total (in cents). Lines are a
+    // snapshot passed from the cart (or a synthetic custom-amount line).
+    lines: CartLine[];
+    totalCents: number;
+    // When true, the cart is cleared on a successful charge.
+    fromCart?: boolean;
   };
   Success: {
     result: ChargeResult;
+    itemCount?: number;
   };
   Error: {
     message: string;
-    item?: CartItem;
+    lines?: CartLine[];
+    totalCents?: number;
+    fromCart?: boolean;
   };
 };

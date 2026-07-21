@@ -8,11 +8,11 @@ import type {RootStackParamList} from '../navigation';
 type Props = NativeStackScreenProps<RootStackParamList, 'Error'>;
 
 const ErrorScreen: React.FC<Props> = ({navigation, route}) => {
-  const {message, item} = route.params;
+  const {message, lines, totalCents, fromCart} = route.params;
 
   const onRetry = () => {
-    if (item) {
-      navigation.replace('Payment', {item});
+    if (lines && lines.length > 0 && typeof totalCents === 'number') {
+      navigation.replace('Payment', {lines, totalCents, fromCart});
     } else {
       navigation.popToTop();
     }

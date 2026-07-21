@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {
   ActivityIndicator,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,17 +12,19 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import StatusChip from '../components/StatusChip';
 import {colors, font, radius, spacing} from '../constants/theme';
 import {formatPrice} from '../constants/products';
+import {useCart} from '../context/CartContext';
 import {useTerminalPayments} from '../hooks/useStripeTerminal';
 import type {RootStackParamList} from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Payment'>;
 
 const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
-  const {item} = route.params;
+  const {lines, totalCents, fromCart} = route.params;
   const {connected, charge} = useTerminalPayments();
+  const {clear} = useCart();
   const [processing, setProcessing] = useState(false);
 
-  const totalCents = item.priceCents * item.quantity;
+  const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
   const onTapToPay = async () => {
     if (!connected || processing) {
@@ -30,11 +33,14 @@ const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
     setProcessing(true);
     try {
       const result = await charge(totalCents);
-      navigation.replace('Success', {result});
+      if (fromCart) {
+        clear();
+      }
+      navigation.replace('Success', {result, itemCount});
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong';
-      navigation.replace('Error', {message, item});
+      navigation.replace('Error', {message, lines, totalCents, fromCart});
     } finally {
       setProcessing(false);
     }
@@ -50,23 +56,31 @@ const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.label}>Order</Text>
+        <Text style={styles.label}>
+          Order · {itemCount} {itemCount === 1 ? 'item' : 'items'}
+        </Text>
         <View style={styles.card}>
-          <View style={styles.lineItem}>
-            <View style={styles.flex}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              {item.color || item.size ? (
-                <Text style={styles.itemVariant}>
-                  {[item.color, item.size].filter(Boolean).join(' / ')}
+          <ScrollView style={styles.linesScroll}>
+            {lines.map((item, idx) => (
+              <View
+                key={item.key}
+                style={[styles.lineItem, idx > 0 && styles.lineItemSpacer]}>
+                <View style={styles.flex}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  {item.color || item.size ? (
+                    <Text style={styles.itemVariant}>
+                      {[item.color, item.size].filter(Boolean).join(' / ')}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.itemSku}>{item.sku}</Text>
+                </View>
+                <Text style={styles.itemQty}>× {item.quantity}</Text>
+                <Text style={styles.itemPrice}>
+                  {formatPrice(item.priceCents * item.quantity)}
                 </Text>
-              ) : null}
-              <Text style={styles.itemSku}>{item.sku}</Text>
-            </View>
-            <Text style={styles.itemQty}>× {item.quantity}</Text>
-            <Text style={styles.itemPrice}>
-              {formatPrice(item.priceCents * item.quantity)}
-            </Text>
-          </View>
+              </View>
+            ))}
+          </ScrollView>
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
@@ -138,7 +152,14 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
   },
+  linesScroll: {maxHeight: 320},
   lineItem: {flexDirection: 'row', alignItems: 'center'},
+  lineItemSpacer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   flex: {flex: 1},
   itemName: {
     fontSize: font.sizes.md,
