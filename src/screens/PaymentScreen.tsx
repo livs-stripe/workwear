@@ -13,6 +13,7 @@ import StatusChip from '../components/StatusChip';
 import {colors, font, radius, spacing} from '../constants/theme';
 import {formatPrice} from '../constants/products';
 import {useCart} from '../context/CartContext';
+import {useVisit, visitToMetadata} from '../context/VisitContext';
 import {useTerminalPayments} from '../hooks/useStripeTerminal';
 import type {RootStackParamList} from '../navigation';
 
@@ -22,6 +23,7 @@ const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
   const {lines, totalCents, fromCart} = route.params;
   const {connected, charge} = useTerminalPayments();
   const {clear} = useCart();
+  const {visit} = useVisit();
   const [processing, setProcessing] = useState(false);
 
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
@@ -32,11 +34,16 @@ const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
     }
     setProcessing(true);
     try {
-      const result = await charge(totalCents);
+      const result = await charge(totalCents, visitToMetadata(visit));
       if (fromCart) {
         clear();
       }
-      navigation.replace('Success', {result, itemCount});
+      navigation.replace('Success', {
+        result,
+        itemCount,
+        company: visit?.company,
+        site: visit?.site,
+      });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong';

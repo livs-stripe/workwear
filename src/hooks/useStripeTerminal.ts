@@ -207,8 +207,15 @@ export function useTerminalPayments() {
    * 4. confirm/process the payment
    */
   const charge = useCallback(
-    async (amountCents: number): Promise<ChargeResult> => {
-      const clientSecret = await createPaymentIntent(amountCents);
+    async (
+      amountCents: number,
+      metadata?: Record<string, string>,
+    ): Promise<ChargeResult> => {
+      const clientSecret = await createPaymentIntent(
+        amountCents,
+        undefined,
+        metadata,
+      );
 
       const {paymentIntent, error: retrieveError} =
         await retrievePaymentIntent(clientSecret);

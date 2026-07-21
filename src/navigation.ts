@@ -2,6 +2,7 @@ import type {ChargeResult} from './hooks/useStripeTerminal';
 import type {CartLine} from './context/CartContext';
 
 export type RootStackParamList = {
+  VisitDetails: undefined;
   BrandSelect: undefined;
   Products: {
     brand: string;
@@ -21,6 +22,8 @@ export type RootStackParamList = {
   Success: {
     result: ChargeResult;
     itemCount?: number;
+    company?: string;
+    site?: string;
   };
   Error: {
     message: string;

@@ -9,7 +9,7 @@ import type {RootStackParamList} from '../navigation';
 type Props = NativeStackScreenProps<RootStackParamList, 'Success'>;
 
 const SuccessScreen: React.FC<Props> = ({navigation, route}) => {
-  const {result, itemCount} = route.params;
+  const {result, itemCount, company, site} = route.params;
   const date = new Date(result.timestamp);
 
   return (
@@ -22,6 +22,8 @@ const SuccessScreen: React.FC<Props> = ({navigation, route}) => {
         <Text style={styles.amount}>{formatPrice(result.amountCents)}</Text>
 
         <View style={styles.card}>
+          {company ? <Row label="Company" value={company} /> : null}
+          {site ? <Row label="Site" value={site} /> : null}
           {itemCount && itemCount > 0 ? (
             <Row
               label="Items"

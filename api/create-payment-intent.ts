@@ -27,14 +27,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { amount, currency } = (req.body ?? {}) as {
-      amount?: number;
-      currency?: string;
-    };
+    const { amount, currency, metadata, company, site, contact, po_number } =
+      (req.body ?? {}) as {
+        amount?: number;
+        currency?: string;
+        metadata?: Record<string, unknown>;
+        company?: unknown;
+        site?: unknown;
+        contact?: unknown;
+        po_number?: unknown;
+      };
 
     if (typeof amount !== 'number' || amount <= 0) {
       return res.status(400).json({ error: 'A positive integer "amount" (in cents) is required' });
     }
+
+    // Whitelist caller-supplied metadata to non-empty strings, capped to
+    // Stripe's per-value length limit. Accepts both a `metadata` object and
+    // explicit company/site/contact/po_number fields.
+    const extraMetadata: Record<string, string> = {};
+    const addMeta = (key: string, value: unknown) => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        extraMetadata[key] = value.trim().slice(0, 500);
+      }
+    };
+    if (metadata && typeof metadata === 'object') {
+      for (const [key, value] of Object.entries(metadata)) {
+        addMeta(key, value);
+      }
+    }
+    addMeta('company', company);
+    addMeta('site', site);
+    addMeta('contact', contact);
+    addMeta('po_number', po_number);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
@@ -45,6 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         channel: 'tap_to_pay',
         brand: 'workwear_demo',
         location: 'field_sales',
+        ...extraMetadata,
       },
     });
 

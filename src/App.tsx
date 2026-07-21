@@ -7,7 +7,9 @@ import {StripeTerminalProvider} from '@stripe/stripe-terminal-react-native';
 import {colors} from './constants/theme';
 import {fetchConnectionToken} from './lib/api';
 import {CartProvider} from './context/CartContext';
+import {VisitProvider} from './context/VisitContext';
 import type {RootStackParamList} from './navigation';
+import VisitDetailsScreen from './screens/VisitDetailsScreen';
 import BrandSelectScreen from './screens/BrandSelectScreen';
 import ProductScreen from './screens/ProductScreen';
 import ProductDetailScreen from './screens/ProductDetailScreen';
@@ -25,24 +27,33 @@ const App: React.FC = () => {
       <StripeTerminalProvider
         logLevel="verbose"
         tokenProvider={fetchConnectionToken}>
-        <CartProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              screenOptions={{headerShown: false}}
-              initialRouteName="BrandSelect">
-              <Stack.Screen name="BrandSelect" component={BrandSelectScreen} />
-              <Stack.Screen name="Products" component={ProductScreen} />
-              <Stack.Screen
-                name="ProductDetail"
-                component={ProductDetailScreen}
-              />
-              <Stack.Screen name="Cart" component={CartScreen} />
-              <Stack.Screen name="Payment" component={PaymentScreen} />
-              <Stack.Screen name="Success" component={SuccessScreen} />
-              <Stack.Screen name="Error" component={ErrorScreen} />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </CartProvider>
+        <VisitProvider>
+          <CartProvider>
+            <NavigationContainer>
+              <Stack.Navigator
+                screenOptions={{headerShown: false}}
+                initialRouteName="VisitDetails">
+                <Stack.Screen
+                  name="VisitDetails"
+                  component={VisitDetailsScreen}
+                />
+                <Stack.Screen
+                  name="BrandSelect"
+                  component={BrandSelectScreen}
+                />
+                <Stack.Screen name="Products" component={ProductScreen} />
+                <Stack.Screen
+                  name="ProductDetail"
+                  component={ProductDetailScreen}
+                />
+                <Stack.Screen name="Cart" component={CartScreen} />
+                <Stack.Screen name="Payment" component={PaymentScreen} />
+                <Stack.Screen name="Success" component={SuccessScreen} />
+                <Stack.Screen name="Error" component={ErrorScreen} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </CartProvider>
+        </VisitProvider>
       </StripeTerminalProvider>
     </SafeAreaProvider>
   );

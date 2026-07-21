@@ -13,6 +13,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {colors, font, radius, spacing} from '../constants/theme';
 import {formatPrice, getBrandSummaries} from '../constants/products';
 import {useCart} from '../context/CartContext';
+import {useVisit} from '../context/VisitContext';
 import type {RootStackParamList} from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BrandSelect'>;
@@ -20,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'BrandSelect'>;
 const BrandSelectScreen: React.FC<Props> = ({navigation}) => {
   const brandSummaries = getBrandSummaries();
   const {addItem, itemCount} = useCart();
+  const {visit} = useVisit();
 
   const [customAmount, setCustomAmount] = useState('');
   const customCents = Math.round(parseFloat(customAmount || '0') * 100);
@@ -60,6 +62,24 @@ const BrandSelectScreen: React.FC<Props> = ({navigation}) => {
           ) : null}
         </TouchableOpacity>
       </View>
+
+      {visit ? (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.visitBanner}
+          onPress={() => navigation.navigate('VisitDetails')}>
+          <View style={styles.visitInfo}>
+            <Text style={styles.visitCompany} numberOfLines={1}>
+              {visit.company}
+            </Text>
+            <Text style={styles.visitSite} numberOfLines={1}>
+              {visit.site}
+              {visit.poNumber ? ` · PO ${visit.poNumber}` : ''}
+            </Text>
+          </View>
+          <Text style={styles.visitEdit}>Change</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.prompt}>Choose a brand</Text>
@@ -177,6 +197,32 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: font.sizes.xs,
     fontWeight: font.weight.bold,
+  },
+  visitBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: '#FFF6F0',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  visitInfo: {flex: 1},
+  visitCompany: {
+    fontSize: font.sizes.sm,
+    fontWeight: font.weight.bold,
+    color: colors.text,
+  },
+  visitSite: {
+    fontSize: font.sizes.xs,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  visitEdit: {
+    fontSize: font.sizes.sm,
+    fontWeight: font.weight.bold,
+    color: colors.primary,
+    marginLeft: spacing.md,
   },
   scroll: {padding: spacing.md, paddingBottom: spacing.xxl},
   prompt: {

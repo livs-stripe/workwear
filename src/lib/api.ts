@@ -40,10 +40,11 @@ export async function fetchConnectionToken(): Promise<string> {
 export async function createPaymentIntent(
   amountCents: number,
   currency: string = CURRENCY,
+  metadata?: Record<string, string>,
 ): Promise<string> {
   const {data} = await client.post<{client_secret: string}>(
     '/api/create-payment-intent',
-    {amount: amountCents, currency},
+    {amount: amountCents, currency, metadata},
   );
   if (!data?.client_secret) {
     throw new Error('No client_secret returned from server');

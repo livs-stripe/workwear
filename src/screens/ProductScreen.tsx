@@ -6,6 +6,7 @@ import ProductCard from '../components/ProductCard';
 import {colors, font, radius, spacing} from '../constants/theme';
 import {getProductsByBrand, Product} from '../constants/products';
 import {useCart} from '../context/CartContext';
+import {useVisit} from '../context/VisitContext';
 import type {RootStackParamList} from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
@@ -13,6 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
 const ProductScreen: React.FC<Props> = ({navigation, route}) => {
   const {brand} = route.params;
   const {itemCount} = useCart();
+  const {visit} = useVisit();
 
   const brandProducts = getProductsByBrand(brand);
 
@@ -49,6 +51,12 @@ const ProductScreen: React.FC<Props> = ({navigation, route}) => {
           ) : null}
         </TouchableOpacity>
       </View>
+
+      {visit ? (
+        <Text style={styles.visitLine} numberOfLines={1}>
+          {visit.company} · {visit.site}
+        </Text>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {categories.map(category => {
@@ -125,6 +133,14 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: font.sizes.xs,
     fontWeight: font.weight.bold,
+  },
+  visitLine: {
+    fontSize: font.sizes.xs,
+    color: colors.textMuted,
+    fontWeight: font.weight.medium,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: '#FFF6F0',
   },
   scroll: {padding: spacing.sm, paddingBottom: spacing.xxl},
   categorySection: {marginTop: spacing.md},
