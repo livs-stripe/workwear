@@ -8,6 +8,7 @@ import {colors} from './constants/theme';
 import {fetchConnectionToken} from './lib/api';
 import type {RootStackParamList} from './navigation';
 import ProductScreen from './screens/ProductScreen';
+import ProductDetailScreen from './screens/ProductDetailScreen';
 import PaymentScreen from './screens/PaymentScreen';
 import SuccessScreen from './screens/SuccessScreen';
 import ErrorScreen from './screens/ErrorScreen';
@@ -26,6 +27,7 @@ const App: React.FC = () => {
             screenOptions={{headerShown: false}}
             initialRouteName="Products">
             <Stack.Screen name="Products" component={ProductScreen} />
+            <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
             <Stack.Screen name="Payment" component={PaymentScreen} />
             <Stack.Screen name="Success" component={SuccessScreen} />
             <Stack.Screen name="Error" component={ErrorScreen} />

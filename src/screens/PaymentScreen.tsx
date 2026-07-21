@@ -55,6 +55,11 @@ const PaymentScreen: React.FC<Props> = ({navigation, route}) => {
           <View style={styles.lineItem}>
             <View style={styles.flex}>
               <Text style={styles.itemName}>{item.name}</Text>
+              {item.color || item.size ? (
+                <Text style={styles.itemVariant}>
+                  {[item.color, item.size].filter(Boolean).join(' / ')}
+                </Text>
+              ) : null}
               <Text style={styles.itemSku}>{item.sku}</Text>
             </View>
             <Text style={styles.itemQty}>× {item.quantity}</Text>
@@ -140,7 +145,13 @@ const styles = StyleSheet.create({
     fontWeight: font.weight.semibold,
     color: colors.text,
   },
-  itemSku: {fontSize: font.sizes.xs, color: colors.textMuted},
+  itemVariant: {
+    fontSize: font.sizes.sm,
+    color: colors.primary,
+    fontWeight: font.weight.medium,
+    marginTop: 2,
+  },
+  itemSku: {fontSize: font.sizes.xs, color: colors.textMuted, marginTop: 2},
   itemQty: {
     fontSize: font.sizes.sm,
     color: colors.textMuted,

@@ -6,10 +6,15 @@ export interface CartItem {
   sku: string;
   priceCents: number;
   quantity: number;
+  color?: string;
+  size?: string;
 }
 
 export type RootStackParamList = {
   Products: undefined;
+  ProductDetail: {
+    productId: string;
+  };
   Payment: {
     item: CartItem;
   };
