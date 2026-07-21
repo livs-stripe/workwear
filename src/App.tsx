@@ -8,6 +8,7 @@ import {colors} from './constants/theme';
 import {fetchConnectionToken} from './lib/api';
 import {CartProvider} from './context/CartContext';
 import type {RootStackParamList} from './navigation';
+import BrandSelectScreen from './screens/BrandSelectScreen';
 import ProductScreen from './screens/ProductScreen';
 import ProductDetailScreen from './screens/ProductDetailScreen';
 import CartScreen from './screens/CartScreen';
@@ -28,7 +29,8 @@ const App: React.FC = () => {
           <NavigationContainer>
             <Stack.Navigator
               screenOptions={{headerShown: false}}
-              initialRouteName="Products">
+              initialRouteName="BrandSelect">
+              <Stack.Screen name="BrandSelect" component={BrandSelectScreen} />
               <Stack.Screen name="Products" component={ProductScreen} />
               <Stack.Screen
                 name="ProductDetail"

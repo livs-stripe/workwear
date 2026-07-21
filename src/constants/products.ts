@@ -275,10 +275,41 @@ export function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export function getProductsByBrand(brand: Brand): Product[] {
+export function getProductsByBrand(brand: string): Product[] {
   return products.filter(p => p.brand === brand);
 }
 
 export function getProductById(id: string): Product | undefined {
   return products.find(p => p.id === id);
+}
+
+// Distinct brand values in first-seen order, derived from the catalog rather
+// than a hardcoded list so new brands appear automatically.
+export function getBrands(): Brand[] {
+  const seen: Brand[] = [];
+  for (const p of products) {
+    if (!seen.includes(p.brand)) {
+      seen.push(p.brand);
+    }
+  }
+  return seen;
+}
+
+export interface BrandSummary {
+  brand: Brand;
+  count: number;
+  imageUrl: string;
+}
+
+// One summary per brand for the brand picker: style count + a representative
+// image taken from the brand's first product.
+export function getBrandSummaries(): BrandSummary[] {
+  return getBrands().map(brand => {
+    const brandProducts = getProductsByBrand(brand);
+    return {
+      brand,
+      count: brandProducts.length,
+      imageUrl: brandProducts[0]?.imageUrl ?? '',
+    };
+  });
 }
