@@ -21,11 +21,16 @@ export async function POST(req: Request) {
     }
 
     const stripe = getStripe();
+
+    // IMPORTANT: the `moto` flag under payment_method_options.card is only
+    // accepted when the PaymentIntent is confirmed — it is rejected as an
+    // "unknown parameter" at creation with confirm:false. We therefore create
+    // the PaymentIntent here WITHOUT moto and apply it at the confirm step
+    // (see ./confirm/route.ts).
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(body.amountCents),
       currency: "aud",
       payment_method_types: ["card"],
-      payment_method_options: { card: { moto: true } },
       confirm: false,
       metadata: {
         channel: "moto",

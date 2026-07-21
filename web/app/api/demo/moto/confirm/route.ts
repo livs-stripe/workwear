@@ -8,20 +8,39 @@ export function OPTIONS() {
   return optionsResponse();
 }
 
+// Test PaymentMethods finance staff can key in over the phone (test mode).
+const TEST_PAYMENT_METHODS: Record<string, string> = {
+  visa: "pm_card_visa",
+  mastercard: "pm_card_mastercard",
+  amex: "pm_card_amex",
+  declined: "pm_card_chargeDeclined",
+};
+
 /**
- * Called by the MOTO client after it confirms the PaymentIntent in the browser.
- * We retrieve the PI server-side to confirm its real status and record the
- * appropriate event on the live stream.
+ * Confirms a MOTO PaymentIntent server-side. This is where the MOTO exemption
+ * flag lives: payment_method_options.card.moto = true. Applying it at
+ * confirmation (rather than creation) is the correct Stripe pattern — passing
+ * it at creation with confirm:false is rejected as an unknown parameter.
  */
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { id?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      id?: string;
+      card?: string;
+    };
     if (!body.id) {
       return errorResponse('A PaymentIntent "id" is required', 400);
     }
 
     const stripe = getStripe();
-    const pi = await stripe.paymentIntents.retrieve(body.id);
+    const paymentMethod =
+      TEST_PAYMENT_METHODS[body.card ?? "visa"] ?? "pm_card_visa";
+
+    let pi = await stripe.paymentIntents.confirm(body.id, {
+      payment_method: paymentMethod,
+      payment_method_options: { card: { moto: true } },
+    });
+
     const customerName = pi.metadata?.customer_name || "customer";
     const invoiceRef = pi.metadata?.invoice_ref;
     const label = invoiceRef ? ` (${invoiceRef})` : "";
@@ -30,7 +49,7 @@ export async function POST(req: Request) {
       recordEvent({
         type: "payment_intent.succeeded",
         objectId: pi.id,
-        summary: `MOTO payment — ${customerName}${label}`,
+        summary: `Phone payment — ${customerName}${label}`,
         amount: pi.amount,
         currency: pi.currency,
       });
@@ -38,7 +57,7 @@ export async function POST(req: Request) {
       recordEvent({
         type: "payment_intent.failed",
         objectId: pi.id,
-        summary: `MOTO payment failed — ${customerName}${label}`,
+        summary: `Phone payment failed — ${customerName}${label}`,
         amount: pi.amount,
         currency: pi.currency,
       });

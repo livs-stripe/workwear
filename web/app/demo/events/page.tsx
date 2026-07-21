@@ -87,7 +87,7 @@ export default function EventsPage() {
             onClick={resetStream}
             className="rounded border border-gray-600 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/10"
           >
-            Reset Demo
+            Reset
           </button>
         </div>
 

@@ -6,6 +6,9 @@ import ProductImage from "@/components/ProductImage";
 import PaymentElementForm from "@/components/PaymentElementForm";
 import StripeChip from "@/components/StripeChip";
 import StatusBadge from "@/components/StatusBadge";
+import CustomerSelect, {
+  type EnterpriseCustomer,
+} from "@/components/CustomerSelect";
 import { PRODUCTS, type Product } from "@/lib/inventory";
 import { formatAud } from "@/lib/data";
 
@@ -35,6 +38,9 @@ const BUYERS: Record<
 export default function CheckoutPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [buyerType, setBuyerType] = useState<BuyerType>("card");
+  const [netCustomer, setNetCustomer] = useState<EnterpriseCustomer | null>(
+    null
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +113,9 @@ export default function CheckoutPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            customerName: `${BUYERS.net30.company} — B2B Portal`,
+            customer: netCustomer?.id,
+            customerName:
+              netCustomer?.name ?? `${BUYERS.net30.company} — B2B Portal`,
             collection_method: "send_invoice",
             days_until_due: 30,
             lineItems: entries.map((e) => ({
@@ -145,6 +153,7 @@ export default function CheckoutPage() {
   function resetDemo() {
     setCart({});
     setBuyerType("card");
+    setNetCustomer(null);
     setClientSecret(null);
     setOrder(null);
     setInvoiceResult(null);
@@ -180,7 +189,7 @@ export default function CheckoutPage() {
           onClick={resetDemo}
           className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Reset Demo
+          Reset
         </button>
       </div>
 
@@ -329,6 +338,16 @@ export default function CheckoutPage() {
                     );
                   })}
                 </div>
+
+                {buyerType === "net30" && (
+                  <div className="mt-4">
+                    <CustomerSelect
+                      value={netCustomer?.id ?? null}
+                      onChange={setNetCustomer}
+                      label="Invoice account"
+                    />
+                  </div>
+                )}
 
                 <button
                   onClick={beginCheckout}

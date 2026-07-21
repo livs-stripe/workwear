@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Workwear Group — Payments Portal",
+  title: "Workwear Group — Unified B2B Payments Platform",
   description:
-    "Internal B2B payments demo portal for Workwear Group (test mode).",
+    "The leading workwear solutions provider. One platform for government contracts, enterprise invoicing and B2B portal checkout across Hard Yakka, KingGee and NNT.",
 };
 
 export default function RootLayout({

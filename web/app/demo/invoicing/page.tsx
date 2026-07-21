@@ -5,6 +5,9 @@ import { QRCodeCanvas } from "qrcode.react";
 import StatusBadge, { type Status } from "@/components/StatusBadge";
 import StripeChip from "@/components/StripeChip";
 import DemoIntro from "@/components/DemoIntro";
+import CustomerSelect, {
+  type EnterpriseCustomer,
+} from "@/components/CustomerSelect";
 import {
   INVOICING_LINE_ITEMS,
   formatAud,
@@ -38,9 +41,8 @@ function virtualAccount(seed: string): {
 }
 
 export default function InvoicingPage() {
-  const [customerName, setCustomerName] = useState(
-    "Qantas Group — Uniform Division"
-  );
+  const [customer, setCustomer] = useState<EnterpriseCustomer | null>(null);
+  const customerName = customer?.name ?? "the client";
   const [items, setItems] = useState<LineItem[]>(INVOICING_LINE_ITEMS);
   const [days, setDays] = useState(30);
   const [collection, setCollection] = useState<
@@ -94,7 +96,8 @@ export default function InvoicingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerName,
+          customer: customer?.id,
+          customerName: customer?.name,
           lineItems: items,
           days_until_due: days,
           collection_method: collection,
@@ -113,7 +116,6 @@ export default function InvoicingPage() {
   function resetDemo() {
     setInvoice(null);
     setItems(INVOICING_LINE_ITEMS);
-    setCustomerName("Qantas Group — Uniform Division");
     setError(null);
     setAutoCharge("processing");
     setBecs("pending");
@@ -160,7 +162,7 @@ export default function InvoicingPage() {
           onClick={resetDemo}
           className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Reset Demo
+          Reset
         </button>
       </div>
 
@@ -174,16 +176,12 @@ export default function InvoicingPage() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-4 font-semibold text-charcoal">Invoice Builder</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Customer
-            </label>
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
+          <CustomerSelect
+            value={customer?.id ?? null}
+            onChange={setCustomer}
+            label="Customer"
+            disabled={Boolean(invoice)}
+          />
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">

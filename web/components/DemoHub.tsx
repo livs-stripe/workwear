@@ -119,7 +119,7 @@ export default function DemoHub() {
                 </div>
               </div>
               <span className="mt-6 inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-brand">
-                Launch demo
+                Open
                 <span className="transition-transform group-hover:translate-x-1">
                   →
                 </span>
@@ -146,7 +146,7 @@ export default function DemoHub() {
           </h2>
           <p className="mt-1 text-white/70">
             See it all happen live — every customer, invoice and payment across
-            the three demos as it lands in Stripe.
+            the three channels as it lands in Stripe.
           </p>
         </div>
         <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-brand">
@@ -160,7 +160,7 @@ export default function DemoHub() {
       {/* Secondary demos */}
       <div className="mt-12">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-wwgGrey">
-          More demos
+          More tools
         </p>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {SECONDARY.map((card) => (

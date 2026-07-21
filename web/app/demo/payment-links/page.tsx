@@ -128,7 +128,7 @@ export default function PaymentLinksPage() {
           onClick={resetDemo}
           className="rounded-lg border border-wwgBorder bg-white px-4 py-2 text-sm font-medium text-charcoal hover:bg-wwgSurface"
         >
-          Reset Demo
+          Reset
         </button>
       </div>
 

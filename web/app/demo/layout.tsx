@@ -1,5 +1,4 @@
 import DemoHeader from "@/components/DemoHeader";
-import TestModeBanner from "@/components/TestModeBanner";
 
 export default function DemoLayout({
   children,
@@ -8,7 +7,6 @@ export default function DemoLayout({
 }) {
   return (
     <div className="min-h-screen bg-wwgSurface">
-      <TestModeBanner />
       <DemoHeader />
       <main>{children}</main>
     </div>

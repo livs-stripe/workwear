@@ -22,7 +22,7 @@ export default function DemoHeader() {
     <header className="border-b border-black/20 bg-charcoal text-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-4">
-          <Link href="/demo" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-bold uppercase tracking-[0.08em] text-brand">
               WORKWEAR GROUP
             </span>
@@ -68,9 +68,12 @@ export default function DemoHeader() {
               );
             })}
           </nav>
-          <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
-            Demo Mode
-          </span>
+          <Link
+            href="/demo/checkout"
+            className="rounded-md bg-brand px-4 py-1.5 text-xs font-bold uppercase tracking-[0.08em] text-white transition-colors hover:bg-brand-dark"
+          >
+            Shop the Brands
+          </Link>
         </div>
       </div>
     </header>
