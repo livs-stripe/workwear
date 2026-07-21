@@ -6,8 +6,12 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { label: "NSW Gov", href: "/demo/nsw-gov" },
   { label: "Invoicing", href: "/demo/invoicing" },
-  { label: "MOTO", href: "/demo/moto" },
+  { label: "Checkout", href: "/demo/checkout" },
   { label: "Event Stream", href: "/demo/events" },
+];
+
+const SECONDARY_NAV = [
+  { label: "MOTO", href: "/demo/moto" },
   { label: "Payment Links", href: "/demo/payment-links" },
 ];
 
@@ -28,7 +32,7 @@ export default function DemoHeader() {
           </span>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <nav className="flex items-center gap-1">
             {NAV.map((item) => {
               const active = pathname === item.href;
@@ -40,6 +44,23 @@ export default function DemoHeader() {
                     active
                       ? "bg-brand text-white"
                       : "text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            <span className="mx-1 hidden h-4 w-px bg-white/20 sm:inline-block" />
+            {SECONDARY_NAV.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium uppercase tracking-wide transition-colors ${
+                    active
+                      ? "bg-white/15 text-white"
+                      : "text-white/45 hover:bg-white/10 hover:text-white/80"
                   }`}
                 >
                   {item.label}

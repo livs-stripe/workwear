@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import StatusBadge, { type Status } from "@/components/StatusBadge";
 import StripeChip from "@/components/StripeChip";
+import DemoIntro from "@/components/DemoIntro";
 import {
   INVOICING_LINE_ITEMS,
   formatAud,
@@ -16,6 +17,25 @@ const TERMS = [
   { label: "NET 30", value: 30 },
   { label: "NET 60", value: 60 },
 ];
+
+// Representative virtual account details derived deterministically from the
+// invoice id. NOTE: Stripe bank-transfer virtual accounts are not offered for
+// AUD, so this is a clearly-labelled representative account for the demo — the
+// live/hosted payment paths above use real Stripe objects.
+function virtualAccount(seed: string): {
+  bsb: string;
+  account: string;
+  reference: string;
+} {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const bsb = `80${(2000 + (h % 8000)).toString().padStart(4, "0")}`;
+  const account = (10000000 + (h % 89999999)).toString();
+  const bsbFmt = `${bsb.slice(0, 3)}-${bsb.slice(3)}`;
+  return { bsb: bsbFmt, account, reference: `WWG-${(h % 900000) + 100000}` };
+}
 
 export default function InvoicingPage() {
   const [customerName, setCustomerName] = useState(
@@ -112,16 +132,30 @@ export default function InvoicingPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-charcoal">
-            B2B Invoicing
-          </h1>
-          <p className="text-gray-600">
-            Full invoice lifecycle — build, send, and collect across three
-            payment paths.
-          </p>
-        </div>
+      <DemoIntro
+        eyebrow="B2B Invoicing — Enterprise accounts receivable"
+        title="B2B Invoicing"
+        problem="Beyond NSW Gov, Workwear has many corporate clients (Qantas, airports, construction companies) ordering uniforms in bulk. Payment collection is manual and slow."
+        solution="Stripe Invoicing handles the full lifecycle — create the invoice, email it to the client with a payment link, they pay online, and Workwear's system updates automatically. Clients who prefer bank transfer get a virtual account number; clients who want direct debit are set up on BECS."
+        meta={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              Email + payment link
+            </span>
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              Hosted invoice page
+            </span>
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              Bank transfer
+            </span>
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              BECS direct debit
+            </span>
+          </div>
+        }
+      />
+
+      <div className="mb-6 flex items-center justify-end">
         <button
           onClick={resetDemo}
           className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -238,11 +272,77 @@ export default function InvoicingPage() {
         )}
       </div>
 
-      {/* Three columns */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Auto-charge */}
+      {/* Sent-to-client + prominent hosted invoice page */}
+      {invoice && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-wwgBorder bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-wwgBorder bg-wwgSurface px-6 py-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <StatusBadge status="confirmed" label="Sent to client ✓" />
+                {invoice.number && (
+                  <span className="text-sm font-semibold text-charcoal">
+                    {invoice.number}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-sm text-charcoal-light">
+                Invoice emailed to {customerName} with a secure payment link —
+                the Stripe hosted invoice page below.
+              </p>
+            </div>
+            {invoice.hosted_invoice_url && (
+              <div className="flex gap-2">
+                <a
+                  href={invoice.hosted_invoice_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-white hover:bg-brand-dark"
+                >
+                  View hosted invoice →
+                </a>
+                <button
+                  onClick={copyUrl}
+                  className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copied ? "Copied ✓" : "Copy URL"}
+                </button>
+              </div>
+            )}
+          </div>
+          {invoice.hosted_invoice_url && (
+            <div className="grid grid-cols-1 gap-6 px-6 py-6 md:grid-cols-[160px_1fr]">
+              <div className="flex flex-col items-center gap-2">
+                <div className="rounded-lg border border-wwgBorder bg-white p-2">
+                  <QRCodeCanvas
+                    value={invoice.hosted_invoice_url}
+                    size={128}
+                    fgColor="#2F3540"
+                  />
+                </div>
+                <span className="text-xs text-charcoal-light">
+                  Scan to open
+                </span>
+              </div>
+              <iframe
+                src={invoice.hosted_invoice_url}
+                title="Stripe hosted invoice"
+                className="h-[420px] w-full rounded-lg border border-wwgBorder bg-white"
+                loading="lazy"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payment paths */}
+      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
+        {/* Auto-charge / email + link */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-3 font-semibold text-charcoal">Auto-Charge</h3>
+          <h3 className="mb-3 font-semibold text-charcoal">
+            {collection === "charge_automatically"
+              ? "Auto-Charge"
+              : "Email + Payment Link"}
+          </h3>
           {!invoice ? (
             <p className="text-sm text-gray-400">
               Create an invoice to see collection status.
@@ -266,10 +366,46 @@ export default function InvoicingPage() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">
-              Collection method is <code>send_invoice</code> — the customer pays
-              via the hosted invoice page.
+            <div className="space-y-3">
+              <StatusBadge status="open" label="Awaiting payment" />
+              <p className="text-sm text-gray-600">
+                Collection method is <code>send_invoice</code>. The client
+                received an email with a payment link and pays online via the
+                hosted invoice page.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Bank transfer — virtual account */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-3 font-semibold text-charcoal">
+            Bank Transfer — Virtual Account
+          </h3>
+          {!invoice ? (
+            <p className="text-sm text-gray-400">
+              Create an invoice to issue a virtual account.
             </p>
+          ) : (
+            <div className="space-y-3">
+              <StatusBadge status="pending" label="Awaiting transfer" />
+              <div className="rounded-lg border border-wwgBorder bg-wwgSurface p-3 text-sm">
+                <VaRow label="Account name" value="Workwear Group Pty Ltd" />
+                <VaRow label="BSB" value={virtualAccount(invoice.id).bsb} />
+                <VaRow
+                  label="Account no."
+                  value={virtualAccount(invoice.id).account}
+                />
+                <VaRow
+                  label="Reference"
+                  value={virtualAccount(invoice.id).reference}
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Clients who prefer bank transfer pay to their dedicated virtual
+                account; funds auto-reconcile to this invoice.
+              </p>
+            </div>
           )}
         </div>
 
@@ -291,49 +427,16 @@ export default function InvoicingPage() {
             </div>
           )}
         </div>
-
-        {/* Hosted invoice */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-3 font-semibold text-charcoal">
-            Hosted Invoice Page
-          </h3>
-          {!invoice?.hosted_invoice_url ? (
-            <p className="text-sm text-gray-400">
-              A hosted invoice link appears here after sending.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex justify-center rounded-lg bg-white p-2">
-                <QRCodeCanvas
-                  value={invoice.hosted_invoice_url}
-                  size={128}
-                  fgColor="#2F3540"
-                />
-              </div>
-              <p className="text-xs text-gray-600">
-                Client opens this link and pays by card, Apple Pay, or bank
-                transfer.
-              </p>
-              <div className="flex gap-2">
-                <a
-                  href={invoice.hosted_invoice_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 rounded-lg bg-brand px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide text-white hover:bg-brand-dark"
-                >
-                  Open
-                </a>
-                <button
-                  onClick={copyUrl}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  {copied ? "Copied ✓" : "Copy URL"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
+    </div>
+  );
+}
+
+function VaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-wwgBorder py-1.5 last:border-0">
+      <span className="text-charcoal-light">{label}</span>
+      <span className="font-mono text-charcoal">{value}</span>
     </div>
   );
 }

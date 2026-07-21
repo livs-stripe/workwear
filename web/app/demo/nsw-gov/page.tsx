@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import PaymentElementForm from "@/components/PaymentElementForm";
 import StripeChip from "@/components/StripeChip";
 import StatusBadge, { type Status } from "@/components/StatusBadge";
+import DemoIntro from "@/components/DemoIntro";
 import {
   NSW_HEALTH_OFFICES,
   NSW_GOV_LINE_ITEMS,
@@ -30,6 +31,7 @@ export default function NswGovPage() {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hostedUrl, setHostedUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const subtotal = lineItemsSubtotal(items);
@@ -124,6 +126,7 @@ export default function NswGovPage() {
         const res = await fetch(`/api/demo/invoices/${invoiceId}`);
         const data = await res.json();
         if (!res.ok) return;
+        if (data.hosted_invoice_url) setHostedUrl(data.hosted_invoice_url);
         if (data.status === "paid") {
           setInvoiceStatus("paid");
           setPaidInfo({
@@ -157,6 +160,7 @@ export default function NswGovPage() {
     setInvoiceId(null);
     setInvoiceStatus("draft");
     setPaidInfo(null);
+    setHostedUrl(null);
     setError(null);
     fetch("/api/demo/reset", { method: "POST" }).catch(() => {});
   }
@@ -166,16 +170,28 @@ export default function NswGovPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-charcoal">
-            NSW Government vCard Auto-Charge
-          </h1>
-          <p className="text-gray-600">
-            Onboard a NSW Health purchasing office, store its Citibank vCard, and
-            auto-charge at invoice generation.
-          </p>
-        </div>
+      <DemoIntro
+        eyebrow="NSW Government Contract — Stripe Invoicing + auto-charge"
+        title="NSW Government Contract"
+        urgent
+        problem="19 NSW Health hospitals each have a Citibank corporate card. When Workwear sends them an invoice for uniforms, someone has to manually chase payment. This must become automatic by 30 March 2027 or Workwear loses the contract."
+        solution="Store each hospital's card once. Every time an invoice is generated, Stripe automatically charges it — no human involved. The hospital never has to do anything after the initial setup."
+        meta={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-brand/30 bg-brand-light px-3 py-1 text-xs font-bold uppercase tracking-wide text-brand-dark">
+              Deadline · 30 March 2027
+            </span>
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              19 NSW Health hospitals
+            </span>
+            <span className="rounded-full border border-wwgBorder bg-wwgSurface px-3 py-1 text-xs font-semibold uppercase tracking-wide text-charcoal-light">
+              Citibank corporate cards
+            </span>
+          </div>
+        }
+      />
+
+      <div className="mb-6 flex items-center justify-end">
         <button
           onClick={resetDemo}
           className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -193,8 +209,12 @@ export default function NswGovPage() {
       {paidInfo && (
         <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-6 py-4">
           <p className="text-lg font-bold text-green-800">
-            Invoice paid — {formatAud(paidInfo.amount)} charged to Citibank
-            vCard on file
+            Invoice paid — {formatAud(paidInfo.amount)} charged automatically to
+            the Citibank corporate card on file
+          </p>
+          <p className="mt-1 text-sm text-green-700">
+            No human involved. The hospital did nothing after the one-time card
+            setup.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {paidInfo.pi && (
@@ -203,17 +223,37 @@ export default function NswGovPage() {
             {paidInfo.charge && (
               <StripeChip id={paidInfo.charge} type="charge" />
             )}
-            {paidInfo.url && (
-              <a
-                href={paidInfo.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-medium text-brand underline"
-              >
-                View hosted invoice →
-              </a>
-            )}
           </div>
+        </div>
+      )}
+
+      {(hostedUrl || paidInfo?.url) && (
+        <div className="mb-6 overflow-hidden rounded-xl border border-wwgBorder bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-wwgBorder bg-wwgSurface px-6 py-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                Stripe Hosted Invoice Page
+              </h2>
+              <p className="mt-0.5 text-sm text-charcoal-light">
+                The real Stripe-hosted invoice — also emailed automatically to
+                the hospital's accounts team.
+              </p>
+            </div>
+            <a
+              href={(hostedUrl ?? paidInfo?.url) as string}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-white hover:bg-brand-dark"
+            >
+              View hosted invoice →
+            </a>
+          </div>
+          <iframe
+            src={(hostedUrl ?? paidInfo?.url) as string}
+            title="Stripe hosted invoice"
+            className="h-[520px] w-full bg-white"
+            loading="lazy"
+          />
         </div>
       )}
 
