@@ -22,4 +22,4 @@ export const CURRENCY = 'aud';
 // Vercel → Settings → Deployment Protection, and paste it here. The app sends
 // it as the `x-vercel-protection-bypass` header so requests skip the SSO wall.
 // Leave as an empty string if protection is disabled.
-export const VERCEL_PROTECTION_BYPASS = 'knBvaX6CmumR7o8olCuKgPaHR7R8ZVlx';
+export const VERCEL_PROTECTION_BYPASS = 'RU8LtAXY9fsgqilS9ZqwL4LGeERT8S8r';
