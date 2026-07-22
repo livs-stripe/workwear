@@ -168,6 +168,11 @@ export async function POST() {
           auto_advance: false,
           footer: INVOICE_FOOTER,
           pending_invoice_items_behavior: "include",
+          // Pin the invoice's PaymentIntent to card so it can be confirmed as a
+          // MOTO transaction (payment_method_options.card.moto). Without this the
+          // PI uses dynamic/automatic payment methods and rejects card.moto with
+          // "Received unknown parameter: payment_method_options[card][moto]".
+          payment_settings: { payment_method_types: ["card"] },
           metadata: {
             channel: MOTO_SEED_CHANNEL,
             source: ENTERPRISE_SOURCE,
