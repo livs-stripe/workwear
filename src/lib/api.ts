@@ -37,17 +37,28 @@ export async function fetchConnectionToken(): Promise<string> {
  * Creates a card_present PaymentIntent on the server and returns its
  * client_secret for use with the Terminal SDK.
  */
+export interface CreatePaymentIntentResult {
+  clientSecret: string;
+  // The server-side PaymentIntent id (pi_...). Useful for dashboard lookup.
+  id?: string;
+  // Whether the PaymentIntent was created in Stripe live mode. If this is true
+  // while you're viewing the Test-mode dashboard (or vice versa) that explains
+  // a "missing" transaction — the account/key is in the other mode.
+  livemode?: boolean;
+}
+
 export async function createPaymentIntent(
   amountCents: number,
   currency: string = CURRENCY,
   metadata?: Record<string, string>,
-): Promise<string> {
-  const {data} = await client.post<{client_secret: string}>(
-    '/api/create-payment-intent',
-    {amount: amountCents, currency, metadata},
-  );
+): Promise<CreatePaymentIntentResult> {
+  const {data} = await client.post<{
+    client_secret?: string;
+    id?: string;
+    livemode?: boolean;
+  }>('/api/create-payment-intent', {amount: amountCents, currency, metadata});
   if (!data?.client_secret) {
     throw new Error('No client_secret returned from server');
   }
-  return data.client_secret;
+  return {clientSecret: data.client_secret, id: data.id, livemode: data.livemode};
 }

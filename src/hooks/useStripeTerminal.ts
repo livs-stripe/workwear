@@ -25,6 +25,14 @@ export interface ChargeResult {
   last4?: string;
   cardBrand?: string;
   timestamp: number;
+  // The confirmed PaymentIntent id (pi_...) — search this in the Stripe
+  // Dashboard to find the exact transaction/account/mode.
+  paymentIntentId?: string;
+  // Final PaymentIntent status (should be 'succeeded' for an automatic-capture
+  // card_present charge).
+  status?: string;
+  // Live vs test mode as reported by the server that created the PI.
+  livemode?: boolean;
 }
 
 /**
@@ -211,10 +219,14 @@ export function useTerminalPayments() {
       amountCents: number,
       metadata?: Record<string, string>,
     ): Promise<ChargeResult> => {
-      const clientSecret = await createPaymentIntent(
-        amountCents,
-        undefined,
-        metadata,
+      // 1. Create the PaymentIntent on the server. If this throws (404/401/
+      //    Vercel protection/misconfigured key) the error propagates up and the
+      //    caller shows the ErrorScreen — never a false success.
+      const {clientSecret, id: serverPiId, livemode} =
+        await createPaymentIntent(amountCents, undefined, metadata);
+      console.log(
+        `[Terminal] created PaymentIntent ${serverPiId ?? '(no id)'} ` +
+          `livemode=${String(livemode)} amount=${amountCents}`,
       );
 
       const {paymentIntent, error: retrieveError} =
@@ -235,6 +247,27 @@ export function useTerminalPayments() {
         throw new Error(confirmError?.message ?? 'Payment failed');
       }
 
+      const paymentIntentId = confirmedPi.id ?? serverPiId;
+      const status = confirmedPi.status;
+      console.log(
+        `[Terminal] confirmed PaymentIntent ${paymentIntentId ?? '(no id)'} ` +
+          `status=${status ?? '(unknown)'}`,
+      );
+
+      // 2. Only treat the charge as approved when Stripe reports a terminal
+      //    success status. `succeeded` (automatic capture) or `requires_capture`
+      //    (if manual capture is ever configured) both mean the card was
+      //    charged/authorised. Anything else is a failure — surface it so we
+      //    never show "Payment approved" for a PI that didn't actually go
+      //    through.
+      const APPROVED = ['succeeded', 'requires_capture'];
+      if (status && !APPROVED.includes(status)) {
+        throw new Error(
+          `Payment not completed (status: ${status}` +
+            `${paymentIntentId ? `, ${paymentIntentId}` : ''})`,
+        );
+      }
+
       const charge = confirmedPi.charges?.[0];
       const cardPresent = charge?.paymentMethodDetails?.cardPresentDetails;
 
@@ -243,6 +276,9 @@ export function useTerminalPayments() {
         last4: cardPresent?.last4 ?? undefined,
         cardBrand: cardPresent?.brand ?? undefined,
         timestamp: Date.now(),
+        paymentIntentId: paymentIntentId ?? undefined,
+        status: status ?? undefined,
+        livemode,
       };
     },
     [retrievePaymentIntent, collectPaymentMethod, confirmPaymentIntent],

@@ -74,7 +74,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    return res.status(200).json({ client_secret: paymentIntent.client_secret });
+    return res.status(200).json({
+      client_secret: paymentIntent.client_secret,
+      id: paymentIntent.id,
+      livemode: paymentIntent.livemode,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to create payment intent';
     return res.status(500).json({ error: message });

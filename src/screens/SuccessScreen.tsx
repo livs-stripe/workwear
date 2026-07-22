@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Platform, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {colors, font, radius, spacing} from '../constants/theme';
@@ -41,7 +41,19 @@ const SuccessScreen: React.FC<Props> = ({navigation, route}) => {
           <Row label="Date" value={date.toLocaleDateString()} />
           <Row label="Time" value={date.toLocaleTimeString()} />
           <Row label="Channel" value="Tap to Pay · Field sales" />
+          {result.status ? (
+            <Row label="Status" value={result.status} />
+          ) : null}
+          {typeof result.livemode === 'boolean' ? (
+            <Row label="Mode" value={result.livemode ? 'LIVE' : 'Test'} />
+          ) : null}
         </View>
+
+        {result.paymentIntentId ? (
+          <Text style={styles.ref} selectable>
+            Ref: {result.paymentIntentId}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.footer}>
@@ -106,6 +118,13 @@ const styles = StyleSheet.create({
     fontSize: font.sizes.md,
     color: colors.text,
     fontWeight: font.weight.semibold,
+  },
+  ref: {
+    marginTop: spacing.md,
+    fontSize: font.sizes.xs,
+    color: colors.textMuted,
+    fontFamily: Platform.select({ios: 'Menlo', android: 'monospace'}),
+    textAlign: 'center',
   },
   footer: {padding: spacing.md},
   cta: {
