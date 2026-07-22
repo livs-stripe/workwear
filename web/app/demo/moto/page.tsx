@@ -1,18 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import {
+  CardCvcElement,
+  CardExpiryElement,
+  CardNumberElement,
+  Elements,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js";
 import StripeChip from "@/components/StripeChip";
 import CustomerSelect, {
   type EnterpriseCustomer,
 } from "@/components/CustomerSelect";
 import { formatAud } from "@/lib/data";
 
-const TEST_CARDS = [
-  { key: "visa", label: "Visa ···· 4242" },
-  { key: "mastercard", label: "Mastercard ···· 4444" },
-  { key: "amex", label: "Amex ···· 8431" },
-  { key: "declined", label: "Declined ···· 0002" },
-];
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+let stripePromise: Promise<Stripe | null> | null = null;
+function getStripePromise(): Promise<Stripe | null> | null {
+  if (!publishableKey) return null;
+  if (!stripePromise) {
+    stripePromise = loadStripe(publishableKey);
+  }
+  return stripePromise;
+}
+
+// Styling for the split Card Elements so their contents match the WWG inputs.
+const ELEMENT_OPTIONS = {
+  style: {
+    base: {
+      fontSize: "14px",
+      color: "#2F3540",
+      fontFamily: "inherit",
+      "::placeholder": { color: "#9ca3af" },
+    },
+    invalid: { color: "#dc2626" },
+  },
+};
+
+const FIELD_WRAPPER =
+  "rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus-within:border-brand";
 
 interface OpenInvoice {
   id: string;
@@ -21,6 +50,12 @@ interface OpenInvoice {
   currency: string;
   due_date: number | null;
   created: number;
+}
+
+interface PaidInfo {
+  amount: number;
+  paymentIntent: string;
+  number: string | null;
 }
 
 function fmtDate(epochSeconds: number | null): string {
@@ -32,10 +67,126 @@ function fmtDate(epochSeconds: number | null): string {
   });
 }
 
-interface PaidInfo {
-  amount: number;
-  paymentIntent: string;
-  number: string | null;
+/**
+ * Card-entry form. Rendered inside <Elements>. Finance staff type the card
+ * details; on charge we tokenize client-side into a PaymentMethod (raw PAN
+ * never touches our server) and POST the pm id to /api/demo/moto/pay.
+ */
+function CardForm({
+  invoice,
+  note,
+  customerName,
+  onPaid,
+}: {
+  invoice: OpenInvoice;
+  note: string;
+  customerName?: string;
+  onPaid: (info: PaidInfo) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function takePayment() {
+    if (!stripe || !elements) return;
+    const cardNumber = elements.getElement(CardNumberElement);
+    if (!cardNumber) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: pmError, paymentMethod } =
+        await stripe.createPaymentMethod({
+          type: "card",
+          card: cardNumber,
+          billing_details: customerName ? { name: customerName } : undefined,
+        });
+
+      if (pmError) {
+        setError(pmError.message ?? "Please check the card details.");
+        return;
+      }
+      if (!paymentMethod) {
+        setError("Could not read the card details. Try again.");
+        return;
+      }
+
+      const res = await fetch("/api/demo/moto/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoice: invoice.id,
+          payment_method: paymentMethod.id,
+          note,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+
+      if (data.invoice_status === "paid") {
+        onPaid({
+          amount: invoice.amount_due,
+          paymentIntent: data.payment_intent,
+          number: invoice.number,
+        });
+      } else {
+        throw new Error(
+          `Payment ${data.payment_status ?? "was not completed"} — check the card and try again.`
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to take payment");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <label className="mb-1 block text-sm font-medium text-gray-700">
+        Card number
+      </label>
+      <div className={`mb-3 ${FIELD_WRAPPER}`}>
+        <CardNumberElement
+          options={{ ...ELEMENT_OPTIONS, placeholder: "1234 1234 1234 1234" }}
+        />
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Expiry
+          </label>
+          <div className={FIELD_WRAPPER}>
+            <CardExpiryElement options={ELEMENT_OPTIONS} />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            CVC
+          </label>
+          <div className={FIELD_WRAPPER}>
+            <CardCvcElement options={ELEMENT_OPTIONS} />
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      <button
+        onClick={takePayment}
+        disabled={busy || !stripe}
+        className="w-full rounded-lg bg-brand px-4 py-2.5 font-semibold uppercase tracking-wide text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {busy ? "Charging…" : `Charge ${formatAud(invoice.amount_due)}`}
+      </button>
+    </>
+  );
 }
 
 export default function MotoPage() {
@@ -46,15 +197,13 @@ export default function MotoPage() {
     null
   );
   const [note, setNote] = useState("");
-  const [card, setCard] = useState("visa");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState<PaidInfo | null>(null);
 
   const seededRef = useRef(false);
+  const promise = getStripePromise();
 
-  const invoice =
-    invoices.find((i) => i.id === selectedInvoiceId) ?? null;
+  const invoice = invoices.find((i) => i.id === selectedInvoiceId) ?? null;
 
   const loadInvoices = useCallback(async (customerId: string) => {
     setLoadingInvoices(true);
@@ -95,45 +244,17 @@ export default function MotoPage() {
     loadInvoices(customer.id);
   }, [customer?.id, loadInvoices]);
 
-  async function takePayment() {
-    if (!invoice) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/demo/moto/pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoice: invoice.id, card, note }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed");
-
-      if (data.invoice_status === "paid") {
-        setPaid({
-          amount: invoice.amount_due,
-          paymentIntent: data.payment_intent,
-          number: invoice.number,
-        });
-        setSelectedInvoiceId(null);
-        setNote("");
-        // Re-fetch open invoices so the just-paid invoice drops off the list.
-        if (customer?.id) await loadInvoices(customer.id);
-      } else {
-        throw new Error(
-          `Payment ${data.payment_status ?? "was not completed"} — try another card.`
-        );
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to take payment");
-    } finally {
-      setBusy(false);
-    }
+  async function handlePaid(info: PaidInfo) {
+    setPaid(info);
+    setSelectedInvoiceId(null);
+    setNote("");
+    // Re-fetch open invoices so the just-paid invoice drops off the list.
+    if (customer?.id) await loadInvoices(customer.id);
   }
 
   function reset() {
     setSelectedInvoiceId(null);
     setNote("");
-    setCard("visa");
     setPaid(null);
     setError(null);
     if (customer?.id) loadInvoices(customer.id);
@@ -264,32 +385,29 @@ export default function MotoPage() {
             <p className="text-sm text-gray-400">
               Select an outstanding invoice to collect payment.
             </p>
+          ) : !promise ? (
+            <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              Set{" "}
+              <code className="font-mono">
+                NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+              </code>{" "}
+              to enable card entry.
+            </div>
           ) : (
-            <>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Card provided over the phone
-              </label>
-              <select
-                value={card}
-                onChange={(e) => setCard(e.target.value)}
-                className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                {TEST_CARDS.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={takePayment}
-                disabled={busy}
-                className="w-full rounded-lg bg-brand px-4 py-2.5 font-semibold uppercase tracking-wide text-white hover:bg-brand-dark disabled:opacity-60"
-              >
-                {busy
-                  ? "Charging…"
-                  : `Charge ${formatAud(invoice.amount_due)}`}
-              </button>
-            </>
+            <Elements
+              key={invoice.id}
+              stripe={promise}
+              options={{
+                appearance: { variables: { colorPrimary: "#DC3D46" } },
+              }}
+            >
+              <CardForm
+                invoice={invoice}
+                note={note}
+                customerName={customer?.name}
+                onPaid={handlePaid}
+              />
+            </Elements>
           )}
         </div>
       </div>

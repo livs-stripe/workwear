@@ -9,16 +9,6 @@ export function OPTIONS() {
   return optionsResponse();
 }
 
-// Test card tokens finance staff key in over the phone (test mode). We build a
-// real PaymentMethod from the token, attach it to the customer, then confirm
-// the invoice's own PaymentIntent as a MOTO transaction.
-const TEST_TOKENS: Record<string, string> = {
-  visa: "tok_visa",
-  mastercard: "tok_mastercard",
-  amex: "tok_amex",
-  declined: "tok_chargeDeclined",
-};
-
 /**
  * True when a Stripe error is about the card/moto payment_method_options path
  * being unsupported on the target call — i.e. the invoice's PaymentIntent was
@@ -106,15 +96,17 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       invoice?: string;
-      card?: string;
+      payment_method?: string;
       note?: string;
     };
     if (!body.invoice) {
       return errorResponse('An invoice "id" is required', 400);
     }
+    if (!body.payment_method) {
+      return errorResponse('A "payment_method" id is required', 400);
+    }
 
     const stripe = getStripe();
-    const token = TEST_TOKENS[body.card ?? "visa"] ?? "tok_visa";
 
     const invoice = await stripe.invoices.retrieve(body.invoice, {
       expand: ["payment_intent"],
@@ -140,19 +132,17 @@ export async function POST(req: Request) {
         : (invoice.customer?.id ?? null);
     const invoicePi = invoice.payment_intent as Stripe.PaymentIntent | null;
 
-    // Build a PaymentMethod from the keyed-in test card and attach it so it's
-    // usable for confirmation and reusable for future auto-charges.
-    const paymentMethod = await stripe.paymentMethods.create({
-      type: "card",
-      card: { token },
-    });
+    // The PaymentMethod was tokenized client-side via Stripe.js (raw PAN never
+    // reaches our server). Attach it to the customer so it's usable for
+    // confirmation and reusable for future auto-charges.
+    const paymentMethodId = body.payment_method;
     if (customerId) {
       try {
-        await stripe.paymentMethods.attach(paymentMethod.id, {
+        await stripe.paymentMethods.attach(paymentMethodId, {
           customer: customerId,
         });
       } catch {
-        // Non-fatal: confirmation can still proceed with the PM directly.
+        // Non-fatal: already attached, or confirmation can proceed with the PM.
       }
     }
 
@@ -175,7 +165,7 @@ export async function POST(req: Request) {
       try {
         // Primary: confirm the invoice's OWN PaymentIntent with card.moto.
         confirmed = await stripe.paymentIntents.confirm(invoicePi.id, {
-          payment_method: paymentMethod.id,
+          payment_method: paymentMethodId,
           payment_method_options: { card: { moto: true } },
         });
       } catch (primaryErr) {
@@ -186,7 +176,7 @@ export async function POST(req: Request) {
           amount: invoice.amount_due,
           currency: invoice.currency,
           customer: customerId,
-          paymentMethod: paymentMethod.id,
+          paymentMethod: paymentMethodId,
           invoiceId: invoice.id,
           note: body.note,
         });
@@ -200,7 +190,7 @@ export async function POST(req: Request) {
         amount: invoice.amount_due,
         currency: invoice.currency,
         customer: customerId,
-        paymentMethod: paymentMethod.id,
+        paymentMethod: paymentMethodId,
         invoiceId: invoice.id,
         note: body.note,
       });
