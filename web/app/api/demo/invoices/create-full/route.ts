@@ -3,6 +3,7 @@ import { getStripe, MissingStripeKeyError } from "@/lib/stripe";
 import { errorResponse, jsonResponse, optionsResponse } from "@/lib/cors";
 import { recordEvent } from "@/lib/events";
 import { INVOICE_FOOTER } from "@/lib/data";
+import { getGstTaxRateId } from "@/lib/tax";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,10 @@ export async function POST(req: Request) {
       });
     }
 
+    // 10% AU GST applied on top (exclusive) so the finalized/hosted invoice
+    // shows Subtotal + GST (10%) = Total, matching the UI.
+    const gstTaxRateId = await getGstTaxRateId(stripe);
+
     const collectionMethod = body.collection_method ?? "charge_automatically";
     const params: Stripe.InvoiceCreateParams = {
       customer: customerId,
@@ -65,6 +70,7 @@ export async function POST(req: Request) {
       auto_advance: false,
       footer: INVOICE_FOOTER,
       pending_invoice_items_behavior: "include",
+      default_tax_rates: [gstTaxRateId],
     };
     if (collectionMethod === "charge_automatically") {
       params.default_payment_method = body.default_payment_method;

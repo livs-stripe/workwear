@@ -20,6 +20,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       customerName?: string;
+      customerId?: string;
       lineItems?: LineItemInput[];
     };
 
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
     }
 
     const customerName = body.customerName?.trim() || "Enterprise Client";
+    const customerId = body.customerId?.trim();
     const stripe = getStripe();
 
     // Payment Links require line_items[].price to be a Price ID — they do NOT
@@ -64,10 +66,21 @@ export async function POST(req: Request) {
 
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
+      // Payment Links can't be permanently bound to an existing Customer at
+      // creation, so we record the selected customer on the link metadata (and
+      // propagate it to the resulting Checkout Session's PaymentIntent).
       metadata: {
         channel: "payment_link",
         brand: "workwear_demo",
         customer_name: customerName,
+        ...(customerId ? { customer_id: customerId } : {}),
+      },
+      payment_intent_data: {
+        metadata: {
+          channel: "payment_link",
+          customer_name: customerName,
+          ...(customerId ? { customer_id: customerId } : {}),
+        },
       },
     });
 

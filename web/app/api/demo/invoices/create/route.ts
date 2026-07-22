@@ -1,6 +1,7 @@
 import { getStripe, MissingStripeKeyError } from "@/lib/stripe";
 import { errorResponse, jsonResponse, optionsResponse } from "@/lib/cors";
 import { INVOICE_FOOTER } from "@/lib/data";
+import { getGstTaxRateId } from "@/lib/tax";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
       });
     }
 
+    // 10% AU GST applied on top (exclusive) so the invoice total is
+    // subtotal + GST, matching the UI.
+    const gstTaxRateId = await getGstTaxRateId(stripe);
+
     const collectionMethod = body.collection_method ?? "charge_automatically";
 
     const params: import("stripe").Stripe.InvoiceCreateParams = {
@@ -54,6 +59,7 @@ export async function POST(req: Request) {
       auto_advance: false,
       footer: INVOICE_FOOTER,
       pending_invoice_items_behavior: "include",
+      default_tax_rates: [gstTaxRateId],
     };
     if (collectionMethod === "charge_automatically") {
       // days_until_due is only valid for send_invoice; the NET terms are

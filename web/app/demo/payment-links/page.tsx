@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import StripeChip from "@/components/StripeChip";
+import CustomerSelect, {
+  type EnterpriseCustomer,
+} from "@/components/CustomerSelect";
 import {
   PAYMENT_LINK_LINE_ITEMS,
   TEST_CARD,
@@ -10,8 +13,6 @@ import {
   lineItemsSubtotal,
   type LineItem,
 } from "@/lib/data";
-
-const DEFAULT_CUSTOMER = "Qantas Group — Uniform Division";
 
 interface PaymentLinkResult {
   id: string;
@@ -28,7 +29,7 @@ interface RecentLink {
 }
 
 export default function PaymentLinksPage() {
-  const [customerName, setCustomerName] = useState(DEFAULT_CUSTOMER);
+  const [customer, setCustomer] = useState<EnterpriseCustomer | null>(null);
   const [items, setItems] = useState<LineItem[]>(PAYMENT_LINK_LINE_ITEMS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +79,11 @@ export default function PaymentLinksPage() {
       const res = await fetch("/api/demo/payment-links/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerName, lineItems: items }),
+        body: JSON.stringify({
+          customerName: customer?.name,
+          customerId: customer?.id,
+          lineItems: items,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -96,7 +101,6 @@ export default function PaymentLinksPage() {
   function resetDemo() {
     setLink(null);
     setItems(PAYMENT_LINK_LINE_ITEMS);
-    setCustomerName(DEFAULT_CUSTOMER);
     setError(null);
     setCopied(false);
   }
@@ -146,13 +150,10 @@ export default function PaymentLinksPage() {
           </h2>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-charcoal-light">
-              Client
-            </label>
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full rounded-lg border border-wwgBorder px-3 py-2 text-sm"
+            <CustomerSelect
+              value={customer?.id ?? null}
+              onChange={setCustomer}
+              label="Client"
             />
           </div>
 
