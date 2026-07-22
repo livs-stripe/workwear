@@ -13,13 +13,22 @@ export function OPTIONS() {
 const MOTO_SEED_CHANNEL = "moto_seed";
 
 /**
- * True when a Stripe error is about the card/moto payment_method_options path
- * being unsupported on the target call — i.e. the invoice's PaymentIntent was
- * created with dynamic/automatic payment methods (no explicit `card` type).
- * These invoices can't be confirmed with card.moto and are re-issued as a
- * card-enabled invoice. A genuine decline is NOT this error and must surface.
+ * A PaymentIntent can be confirmed with payment_method_options.card.moto only
+ * when it was created with an explicit `card` payment method type and NOT with
+ * automatic/dynamic payment methods. We check this PROACTIVELY rather than
+ * confirming and catching the "unknown parameter" error, which is fragile.
  */
-function isCardConfigOrMotoError(err: unknown): boolean {
+function isCardConfirmable(pi: Stripe.PaymentIntent): boolean {
+  if (pi.automatic_payment_methods?.enabled) return false;
+  return pi.payment_method_types?.includes("card") ?? false;
+}
+
+/**
+ * True when a Stripe error is specifically the MOTO / payment_method_options
+ * rejection (e.g. the account can't claim the MOTO exemption). Used to fall
+ * back to a plain card confirmation so this error is NEVER surfaced to the user.
+ */
+function isMotoParamError(err: unknown): boolean {
   if (err instanceof Stripe.errors.StripeError) {
     const msg = (err.message || "").toLowerCase();
     const param = (err.param || "").toLowerCase();
@@ -34,12 +43,38 @@ function isCardConfigOrMotoError(err: unknown): boolean {
 }
 
 /**
- * Legacy invoices were seeded before payment_settings pinned the PaymentIntent
- * to card, so their PI rejects card.moto. To keep exactly ONE payment record
- * per invoice we DON'T charge a standalone PI + mark paid out of band (that
- * produced a duplicate). Instead we re-issue the same amount as a fresh
- * card-enabled invoice, confirm ITS own PaymentIntent with card.moto, and void
- * the legacy invoice — a single succeeded PI, no duplicate.
+ * Confirm a card PaymentIntent as MOTO. If the account can't claim the MOTO
+ * exemption (Stripe rejects the moto parameter), retry the SAME PI as a normal
+ * card (card-not-present) payment — still a single record. The parameter error
+ * is a 400 that changes no state, so the PI remains confirmable on retry.
+ * Genuine declines (and other real errors) propagate to the caller.
+ */
+async function confirmCardMoto(
+  stripe: Stripe,
+  piId: string,
+  paymentMethodId: string
+): Promise<Stripe.PaymentIntent> {
+  try {
+    return await stripe.paymentIntents.confirm(piId, {
+      payment_method: paymentMethodId,
+      payment_method_options: { card: { moto: true } },
+    });
+  } catch (err) {
+    if (isMotoParamError(err)) {
+      return await stripe.paymentIntents.confirm(piId, {
+        payment_method: paymentMethodId,
+      });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Re-issue a legacy (non-card) invoice as a fresh card-enabled invoice for the
+ * same customer/line items, confirm ITS PaymentIntent, then void the legacy
+ * invoice. Exactly one succeeded PI; the legacy invoice is removed. If the
+ * confirmation fails (real decline / exemption unavailable), the freshly
+ * created invoice is voided and the original is left intact.
  */
 async function reissueAndPay(
   stripe: Stripe,
@@ -55,7 +90,6 @@ async function reissueAndPay(
     throw new Error("Invoice has no customer to re-issue against");
   }
 
-  // Recreate the same line items (fall back to a single balance line).
   const lines = oldInvoice.lines?.data ?? [];
   if (lines.length === 0) {
     await stripe.invoiceItems.create({
@@ -107,14 +141,8 @@ async function reissueAndPay(
 
   let confirmed: Stripe.PaymentIntent;
   try {
-    confirmed = await stripe.paymentIntents.confirm(newPi.id, {
-      payment_method: paymentMethodId,
-      payment_method_options: { card: { moto: true } },
-    });
+    confirmed = await confirmCardMoto(stripe, newPi.id, paymentMethodId);
   } catch (err) {
-    // Payment failed (e.g. MOTO not enabled, or decline). Void the freshly
-    // created invoice so we don't leave an extra open one, and keep the
-    // original intact. No charge occurred, so no duplicate record.
     try {
       await stripe.invoices.voidInvoice(finalized.id);
     } catch {
@@ -123,8 +151,6 @@ async function reissueAndPay(
     throw err;
   }
 
-  // Paid successfully → void the legacy invoice so only the paid re-issue
-  // remains outstanding-free.
   try {
     await stripe.invoices.voidInvoice(oldInvoice.id);
   } catch {
@@ -135,16 +161,13 @@ async function reissueAndPay(
 }
 
 /**
- * Pays a specific Stripe invoice as a MOTO (mail order / telephone order)
- * transaction, producing exactly ONE payment record.
- *
- * Primary path: confirm the invoice's OWN PaymentIntent with
- * payment_method_options.card.moto = true. On success the invoice's PI succeeds
- * and Stripe transitions the invoice to "paid" automatically.
- *
- * Legacy path: if the invoice's PI can't accept card.moto (seeded before the
- * card payment_settings fix), re-issue the amount as a card-enabled invoice and
- * pay that one instead — still a single succeeded PI.
+ * Pays a specific Stripe invoice as a MOTO transaction, producing exactly ONE
+ * payment record. The card/moto path is chosen PROACTIVELY:
+ *  - invoice PI already accepts card  → confirm it directly with card.moto.
+ *  - invoice PI is dynamic/automatic  → re-issue as a card invoice and pay that,
+ *    then void the legacy invoice (the failing confirm is never attempted).
+ * A plain-card fallback guarantees the "unknown parameter card.moto" error is
+ * never surfaced even if the MOTO exemption is unavailable on the account.
  */
 export async function POST(req: Request) {
   try {
@@ -203,7 +226,10 @@ export async function POST(req: Request) {
     let confirmed: Stripe.PaymentIntent;
     let resultInvoiceId = invoice.id;
 
-    if (invoicePi) {
+    // PROACTIVE branch: only confirm the invoice's own PI when it can accept
+    // card.moto; otherwise re-issue as a card invoice (never attempt the failing
+    // confirm on a dynamic/automatic PI).
+    if (invoicePi && isCardConfirmable(invoicePi)) {
       if (body.note) {
         try {
           await stripe.paymentIntents.update(invoicePi.id, {
@@ -217,27 +243,8 @@ export async function POST(req: Request) {
           // metadata is best-effort
         }
       }
-      try {
-        // Primary: confirm the invoice's OWN PaymentIntent with card.moto.
-        confirmed = await stripe.paymentIntents.confirm(invoicePi.id, {
-          payment_method: paymentMethodId,
-          payment_method_options: { card: { moto: true } },
-        });
-      } catch (primaryErr) {
-        // Genuine declines / other errors must surface to the operator.
-        if (!isCardConfigOrMotoError(primaryErr)) throw primaryErr;
-        // Legacy PI can't accept card.moto → re-issue as a card invoice + pay.
-        const reissued = await reissueAndPay(
-          stripe,
-          invoice,
-          paymentMethodId,
-          body.note
-        );
-        confirmed = reissued.confirmed;
-        resultInvoiceId = reissued.invoice.id;
-      }
+      confirmed = await confirmCardMoto(stripe, invoicePi.id, paymentMethodId);
     } else {
-      // Open invoice without a PaymentIntent (unusual) → re-issue + pay.
       const reissued = await reissueAndPay(
         stripe,
         invoice,
